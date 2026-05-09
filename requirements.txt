@@ -1,0 +1,10 @@
+# Requirements for S40 Sign Tool
+
+# GUI (Tkinter is included in Python standard library)
+# No additional packages required for basic functionality
+
+# Optional: For building executable
+pyinstaller>=5.0
+
+# Optional: For better UI
+# pillow>=9.0  # If you want to add icons/images
