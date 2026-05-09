@@ -210,8 +210,21 @@ Kết quả: `dist\S40SignTool.exe`
 © 2026 - S40 Sign Tool  
 Developed with Python + Tkinter
 
+## 🔗 GitHub
+
+Repository: https://github.com/hoangnq07/s40sign
+
+### Clone project
+```bash
+git clone https://github.com/hoangnq07/s40sign.git
+cd s40sign
+```
+
+### Download .exe
+Vào [Releases](https://github.com/hoangnq07/s40sign/releases) để tải file .exe
+
 ---
 
 **Version:** 1.1.1  
-**Last Updated:** May 9, 2026  
+**Last Updated:** May 10, 2026  
 **Status:** ✅ Ready for use!
