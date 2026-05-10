@@ -38,7 +38,7 @@ TRANSLATIONS = {
         'create_cert': 'Tạo Certificate',
         'view_cert': 'Xem thông tin',
         'delete_cert': 'Xóa Certificate',
-        'export_cert': 'Xuất Certificate',
+        'export_cert': 'Xuất Certificate (.cer)',
         'keystore_config': 'Cấu hình Keystore',
         'keystore': 'Keystore',
         'alias': 'Alias',
@@ -113,7 +113,7 @@ TRANSLATIONS = {
         'create_cert': 'Create Certificate',
         'view_cert': 'View Info',
         'delete_cert': 'Delete Certificate',
-        'export_cert': 'Export Certificate',
+        'export_cert': 'Export Certificate (.cer)',
         'keystore_config': 'Keystore Configuration',
         'keystore': 'Keystore',
         'alias': 'Alias',
@@ -939,22 +939,30 @@ class S40SignApp:
             messagebox.showerror("Lỗi", "Không thể xóa certificate!")
     
     def export_certificate(self):
-        """Xuất certificate"""
+        """Xuất certificate cho Nokia S40 (định dạng .cer hoặc .der)"""
         if not os.path.exists(self.keystore):
             messagebox.showerror("Lỗi", "Không tìm thấy keystore!")
             return
         
+        # Default filename for Nokia
+        default_name = "my_nokia_cert.cer"
+        
         filename = filedialog.asksaveasfilename(
-            title="Lưu certificate",
+            title="Xuất Certificate cho Nokia S40",
+            initialfile=default_name,
             defaultextension=".cer",
-            filetypes=[("Certificate files", "*.cer"), ("All files", "*.*")]
+            filetypes=[
+                ("Certificate files (*.cer)", "*.cer"),
+                ("DER Certificate files (*.der)", "*.der"),
+                ("All files", "*.*")
+            ]
         )
         
         if not filename:
             return
         
         self.cert_info.delete(1.0, tk.END)
-        self.log_message("Đang xuất certificate...", self.cert_info)
+        self.log_message("📤 Đang xuất certificate cho Nokia S40...", self.cert_info)
         self.status_var.set("Đang xuất certificate...")
         
         cmd = [
@@ -966,11 +974,48 @@ class S40SignApp:
         ]
         
         if self.run_command(cmd, self.cert_info):
-            self.log_message(f"Đã xuất certificate: {filename}", self.cert_info)
+            file_size = os.path.getsize(filename)
+            self.log_message(f"✅ Đã xuất certificate: {filename}", self.cert_info)
+            self.log_message(f"📊 Kích thước: {file_size} bytes", self.cert_info)
+            self.log_message("", self.cert_info)
+            self.log_message("📱 Hướng dẫn cài vào Nokia S40:", self.cert_info)
+            self.log_message("", self.cert_info)
+            self.log_message("Cách 1: Qua Bluetooth", self.cert_info)
+            self.log_message("  1. Gửi file .cer qua Bluetooth", self.cert_info)
+            self.log_message("  2. Nhận file trên điện thoại", self.cert_info)
+            self.log_message("  3. Mở file → Tự động cài đặt", self.cert_info)
+            self.log_message("", self.cert_info)
+            self.log_message("Cách 2: Qua thẻ nhớ", self.cert_info)
+            self.log_message("  1. Copy file vào thẻ nhớ", self.cert_info)
+            self.log_message("  2. Lắp thẻ vào điện thoại", self.cert_info)
+            self.log_message("  3. File Manager → Mở file .cer", self.cert_info)
+            self.log_message("  4. Tự động cài đặt", self.cert_info)
+            self.log_message("", self.cert_info)
+            self.log_message("Cách 3: Qua USB (Mass Storage)", self.cert_info)
+            self.log_message("  1. Kết nối USB → Chọn Mass Storage", self.cert_info)
+            self.log_message("  2. Copy file vào thẻ nhớ điện thoại", self.cert_info)
+            self.log_message("  3. Rút USB → File Manager → Mở file", self.cert_info)
+            self.log_message("", self.cert_info)
+            self.log_message("💡 Lưu ý:", self.cert_info)
+            self.log_message("  - File .cer và .der đều dùng được", self.cert_info)
+            self.log_message("  - Điện thoại sẽ TỰ ĐỘNG nhận diện", self.cert_info)
+            self.log_message("  - Không cần cài app đặc biệt", self.cert_info)
+            
             self.status_var.set("Xuất certificate thành công")
-            messagebox.showinfo("Thành công", f"Đã xuất certificate!\n\n{filename}")
+            
+            messagebox.showinfo(
+                "Thành công", 
+                f"✅ Đã xuất certificate cho Nokia S40!\n\n"
+                f"📁 File: {os.path.basename(filename)}\n"
+                f"📊 Kích thước: {file_size} bytes\n\n"
+                f"📱 Cách cài vào điện thoại:\n"
+                f"  • Bluetooth: Gửi file → Nhận → Mở\n"
+                f"  • Thẻ nhớ: Copy file → Mở trên điện thoại\n"
+                f"  • USB: Mass Storage → Copy → Mở\n\n"
+                f"💡 Điện thoại sẽ tự động cài đặt!"
+            )
         else:
-            self.log_message("Lỗi khi xuất certificate!", self.cert_info)
+            self.log_message("❌ Lỗi khi xuất certificate!", self.cert_info)
             self.status_var.set("Lỗi")
             messagebox.showerror("Lỗi", "Không thể xuất certificate!")
     

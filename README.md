@@ -139,7 +139,38 @@ s40tool.bat
 ./sign_jar.sh apps/MyApp.jar
 ```
 
-### 3. Đổi ngôn ngữ (GUI)
+### 3. Xuất Certificate cho Nokia S40
+
+**GUI:**
+- Tab "Quản lý Certificate" / "Manage Certificate"
+- Click "Xuất Certificate (.cer)" / "Export Certificate (.cer)"
+- Chọn nơi lưu file (mặc định: `my_nokia_cert.cer`)
+- File có thể là `.cer` hoặc `.der` (cả 2 đều dùng được cho Nokia)
+
+**Cài vào điện thoại Nokia S40:**
+
+**Cách 1: Qua Bluetooth** (Khuyến nghị - Dễ nhất)
+1. Gửi file `.cer` qua Bluetooth từ máy tính/điện thoại khác
+2. Nhận file trên Nokia S40
+3. Mở file → Điện thoại tự động cài đặt certificate
+
+**Cách 2: Qua thẻ nhớ**
+1. Copy file `.cer` vào thẻ nhớ (dùng card reader)
+2. Lắp thẻ nhớ vào điện thoại
+3. File Manager → Tìm file `.cer` → Mở
+4. Điện thoại tự động cài đặt
+
+**Cách 3: Qua USB (Mass Storage)**
+1. Kết nối điện thoại qua USB
+2. Chọn chế độ "Mass Storage" trên điện thoại
+3. Copy file `.cer` vào thẻ nhớ điện thoại
+4. Rút USB → File Manager → Mở file
+
+**Kiểm tra certificate đã cài:**
+- Menu → Settings → Security → Certificate Management
+- Sẽ thấy certificate của bạn trong danh sách
+
+### 4. Đổi ngôn ngữ (GUI)
 
 - Tìm dropdown "Language" ở góc trên phải
 - Chọn: 🇻🇳 Tiếng Việt hoặc 🇬🇧 English
