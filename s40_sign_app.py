@@ -944,12 +944,15 @@ class S40SignApp:
             messagebox.showerror("Lỗi", "Không tìm thấy keystore!")
             return
         
-        # Default filename for Nokia
-        default_name = "my_nokia_cert.cer"
+        # Default to certs folder to avoid Unicode path issues
+        default_dir = os.path.abspath("certs")
+        os.makedirs(default_dir, exist_ok=True)
+        default_path = os.path.join(default_dir, "my_nokia_cert.cer")
         
         filename = filedialog.asksaveasfilename(
             title="Xuất Certificate cho Nokia S40",
-            initialfile=default_name,
+            initialdir=default_dir,
+            initialfile="my_nokia_cert.cer",
             defaultextension=".cer",
             filetypes=[
                 ("Certificate files (*.cer)", "*.cer"),
@@ -961,16 +964,59 @@ class S40SignApp:
         if not filename:
             return
         
+        # Normalize path to handle Unicode properly
+        filename = os.path.normpath(filename)
+        
+        # Check if path contains non-ASCII characters that might cause issues
+        try:
+            # Try to encode/decode to check for issues
+            filename.encode('ascii')
+        except UnicodeEncodeError:
+            # Path contains non-ASCII characters, warn user
+            response = messagebox.askyesno(
+                "Cảnh báo",
+                f"Đường dẫn chứa ký tự đặc biệt có thể gây lỗi:\n\n{filename}\n\n"
+                f"Khuyến nghị lưu vào thư mục:\n{default_dir}\n\n"
+                f"Bạn có muốn tiếp tục với đường dẫn này không?"
+            )
+            if not response:
+                return
+        
         self.cert_info.delete(1.0, tk.END)
         self.log_message("📤 Đang xuất certificate cho Nokia S40...", self.cert_info)
         self.status_var.set("Đang xuất certificate...")
+        
+        # Use short path on Windows to avoid Unicode issues
+        if sys.platform == 'win32':
+            try:
+                import ctypes
+                from ctypes import wintypes
+                
+                # Get short path name (8.3 format) which doesn't have Unicode issues
+                GetShortPathNameW = ctypes.windll.kernel32.GetShortPathNameW
+                GetShortPathNameW.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
+                GetShortPathNameW.restype = wintypes.DWORD
+                
+                # Get required buffer size
+                buffer_size = GetShortPathNameW(filename, None, 0)
+                if buffer_size > 0:
+                    short_path = ctypes.create_unicode_buffer(buffer_size)
+                    GetShortPathNameW(filename, short_path, buffer_size)
+                    filename_for_keytool = short_path.value
+                    self.log_message(f"💡 Sử dụng đường dẫn ngắn: {filename_for_keytool}", self.cert_info)
+                else:
+                    filename_for_keytool = filename
+            except:
+                filename_for_keytool = filename
+        else:
+            filename_for_keytool = filename
         
         cmd = [
             "keytool", "-exportcert",
             "-alias", self.alias,
             "-keystore", self.keystore,
             "-storepass", self.storepass,
-            "-file", filename
+            "-file", filename_for_keytool
         ]
         
         if self.run_command(cmd, self.cert_info):
@@ -1003,10 +1049,14 @@ class S40SignApp:
             
             self.status_var.set("Xuất certificate thành công")
             
+            # Open folder containing the file
+            folder_path = os.path.dirname(filename)
+            
             messagebox.showinfo(
                 "Thành công", 
                 f"✅ Đã xuất certificate cho Nokia S40!\n\n"
                 f"📁 File: {os.path.basename(filename)}\n"
+                f"📂 Thư mục: {folder_path}\n"
                 f"📊 Kích thước: {file_size} bytes\n\n"
                 f"📱 Cách cài vào điện thoại:\n"
                 f"  • Bluetooth: Gửi file → Nhận → Mở\n"
@@ -1014,10 +1064,19 @@ class S40SignApp:
                 f"  • USB: Mass Storage → Copy → Mở\n\n"
                 f"💡 Điện thoại sẽ tự động cài đặt!"
             )
+            
+            # Ask if user wants to open the folder
+            if messagebox.askyesno("Mở thư mục?", f"Bạn có muốn mở thư mục chứa file?\n\n{folder_path}"):
+                if sys.platform == 'win32':
+                    os.startfile(folder_path)
+                elif sys.platform == 'darwin':  # macOS
+                    subprocess.Popen(['open', folder_path])
+                else:  # Linux
+                    subprocess.Popen(['xdg-open', folder_path])
         else:
             self.log_message("❌ Lỗi khi xuất certificate!", self.cert_info)
             self.status_var.set("Lỗi")
-            messagebox.showerror("Lỗi", "Không thể xuất certificate!")
+            messagebox.showerror("Lỗi", "Không thể xuất certificate!\n\nKhuyến nghị: Lưu vào thư mục không có ký tự đặc biệt.")
     
     def save_settings(self):
         """Lưu cài đặt"""
