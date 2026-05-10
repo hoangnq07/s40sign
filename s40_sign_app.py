@@ -38,7 +38,7 @@ TRANSLATIONS = {
         'create_cert': 'Tạo Certificate',
         'view_cert': 'Xem thông tin',
         'delete_cert': 'Xóa Certificate',
-        'export_cert': 'Xuất Certificate (.cer)',
+        'export_cert': 'Xuất Certificate (.cer + .der)',
         'keystore_config': 'Cấu hình Keystore',
         'keystore': 'Keystore',
         'alias': 'Alias',
@@ -113,7 +113,7 @@ TRANSLATIONS = {
         'create_cert': 'Create Certificate',
         'view_cert': 'View Info',
         'delete_cert': 'Delete Certificate',
-        'export_cert': 'Export Certificate (.cer)',
+        'export_cert': 'Export Certificate (.cer + .der)',
         'keystore_config': 'Keystore Configuration',
         'keystore': 'Keystore',
         'alias': 'Alias',
@@ -939,7 +939,7 @@ class S40SignApp:
             messagebox.showerror("Lỗi", "Không thể xóa certificate!")
     
     def export_certificate(self):
-        """Xuất certificate cho Nokia S40 (định dạng .cer hoặc .der)"""
+        """Xuất certificate cho Nokia S40 (tự động xuất cả .cer và .der)"""
         if not os.path.exists(self.keystore):
             messagebox.showerror("Lỗi", "Không tìm thấy keystore!")
             return
@@ -947,35 +947,33 @@ class S40SignApp:
         # Default to certs folder to avoid Unicode path issues
         default_dir = os.path.abspath("certs")
         os.makedirs(default_dir, exist_ok=True)
-        default_path = os.path.join(default_dir, "my_nokia_cert.cer")
         
-        filename = filedialog.asksaveasfilename(
-            title="Xuất Certificate cho Nokia S40",
-            initialdir=default_dir,
-            initialfile="my_nokia_cert.cer",
-            defaultextension=".cer",
-            filetypes=[
-                ("Certificate files (*.cer)", "*.cer"),
-                ("DER Certificate files (*.der)", "*.der"),
-                ("All files", "*.*")
-            ]
+        # Ask user to choose folder (not filename, since we'll create both .cer and .der)
+        folder = filedialog.askdirectory(
+            title="Chọn thư mục để lưu certificate (sẽ tạo cả .cer và .der)",
+            initialdir=default_dir
         )
         
-        if not filename:
+        if not folder:
             return
         
         # Normalize path to handle Unicode properly
-        filename = os.path.normpath(filename)
+        folder = os.path.normpath(folder)
+        
+        # Create both filenames
+        base_name = "my_nokia_cert"
+        cer_file = os.path.join(folder, f"{base_name}.cer")
+        der_file = os.path.join(folder, f"{base_name}.der")
         
         # Check if path contains non-ASCII characters that might cause issues
         try:
             # Try to encode/decode to check for issues
-            filename.encode('ascii')
+            folder.encode('ascii')
         except UnicodeEncodeError:
             # Path contains non-ASCII characters, warn user
             response = messagebox.askyesno(
                 "Cảnh báo",
-                f"Đường dẫn chứa ký tự đặc biệt có thể gây lỗi:\n\n{filename}\n\n"
+                f"Đường dẫn chứa ký tự đặc biệt có thể gây lỗi:\n\n{folder}\n\n"
                 f"Khuyến nghị lưu vào thư mục:\n{default_dir}\n\n"
                 f"Bạn có muốn tiếp tục với đường dẫn này không?"
             )
@@ -984,99 +982,142 @@ class S40SignApp:
         
         self.cert_info.delete(1.0, tk.END)
         self.log_message("📤 Đang xuất certificate cho Nokia S40...", self.cert_info)
+        self.log_message("💡 Sẽ tạo cả 2 file: .cer và .der", self.cert_info)
         self.status_var.set("Đang xuất certificate...")
         
-        # Use short path on Windows to avoid Unicode issues
-        if sys.platform == 'win32':
-            try:
-                import ctypes
-                from ctypes import wintypes
-                
-                # Get short path name (8.3 format) which doesn't have Unicode issues
-                GetShortPathNameW = ctypes.windll.kernel32.GetShortPathNameW
-                GetShortPathNameW.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
-                GetShortPathNameW.restype = wintypes.DWORD
-                
-                # Get required buffer size
-                buffer_size = GetShortPathNameW(filename, None, 0)
-                if buffer_size > 0:
-                    short_path = ctypes.create_unicode_buffer(buffer_size)
-                    GetShortPathNameW(filename, short_path, buffer_size)
-                    filename_for_keytool = short_path.value
-                    self.log_message(f"💡 Sử dụng đường dẫn ngắn: {filename_for_keytool}", self.cert_info)
-                else:
-                    filename_for_keytool = filename
-            except:
-                filename_for_keytool = filename
-        else:
-            filename_for_keytool = filename
+        # Function to get short path on Windows
+        def get_short_path(long_path):
+            if sys.platform == 'win32':
+                try:
+                    import ctypes
+                    from ctypes import wintypes
+                    
+                    GetShortPathNameW = ctypes.windll.kernel32.GetShortPathNameW
+                    GetShortPathNameW.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
+                    GetShortPathNameW.restype = wintypes.DWORD
+                    
+                    buffer_size = GetShortPathNameW(long_path, None, 0)
+                    if buffer_size > 0:
+                        short_path = ctypes.create_unicode_buffer(buffer_size)
+                        GetShortPathNameW(long_path, short_path, buffer_size)
+                        return short_path.value
+                except:
+                    pass
+            return long_path
         
-        cmd = [
+        # Export .cer file
+        self.log_message("\n📄 Xuất file .cer...", self.cert_info)
+        cer_file_for_keytool = get_short_path(cer_file)
+        
+        cmd_cer = [
             "keytool", "-exportcert",
             "-alias", self.alias,
             "-keystore", self.keystore,
             "-storepass", self.storepass,
-            "-file", filename_for_keytool
+            "-file", cer_file_for_keytool
         ]
         
-        if self.run_command(cmd, self.cert_info):
-            file_size = os.path.getsize(filename)
-            self.log_message(f"✅ Đã xuất certificate: {filename}", self.cert_info)
-            self.log_message(f"📊 Kích thước: {file_size} bytes", self.cert_info)
+        cer_success = self.run_command(cmd_cer, self.cert_info)
+        
+        if cer_success:
+            cer_size = os.path.getsize(cer_file)
+            self.log_message(f"✅ Đã tạo: {base_name}.cer ({cer_size} bytes)", self.cert_info)
+        else:
+            self.log_message(f"❌ Lỗi khi tạo file .cer", self.cert_info)
+        
+        # Export .der file (same format, just different extension)
+        self.log_message("\n📄 Xuất file .der...", self.cert_info)
+        der_file_for_keytool = get_short_path(der_file)
+        
+        cmd_der = [
+            "keytool", "-exportcert",
+            "-alias", self.alias,
+            "-keystore", self.keystore,
+            "-storepass", self.storepass,
+            "-file", der_file_for_keytool
+        ]
+        
+        der_success = self.run_command(cmd_der, self.cert_info)
+        
+        if der_success:
+            der_size = os.path.getsize(der_file)
+            self.log_message(f"✅ Đã tạo: {base_name}.der ({der_size} bytes)", self.cert_info)
+        else:
+            self.log_message(f"❌ Lỗi khi tạo file .der", self.cert_info)
+        
+        # Check results
+        if cer_success and der_success:
+            self.log_message("", self.cert_info)
+            self.log_message("=" * 50, self.cert_info)
+            self.log_message("✅ HOÀN THÀNH! Đã xuất cả 2 file:", self.cert_info)
+            self.log_message(f"   📄 {base_name}.cer ({cer_size} bytes)", self.cert_info)
+            self.log_message(f"   📄 {base_name}.der ({der_size} bytes)", self.cert_info)
+            self.log_message("=" * 50, self.cert_info)
             self.log_message("", self.cert_info)
             self.log_message("📱 Hướng dẫn cài vào Nokia S40:", self.cert_info)
             self.log_message("", self.cert_info)
-            self.log_message("Cách 1: Qua Bluetooth", self.cert_info)
-            self.log_message("  1. Gửi file .cer qua Bluetooth", self.cert_info)
+            self.log_message("💡 Dùng file .cer HOẶC .der đều được (chọn 1 trong 2)", self.cert_info)
+            self.log_message("", self.cert_info)
+            self.log_message("Cách 1: Qua Bluetooth (Khuyến nghị)", self.cert_info)
+            self.log_message("  1. Gửi file .cer hoặc .der qua Bluetooth", self.cert_info)
             self.log_message("  2. Nhận file trên điện thoại", self.cert_info)
             self.log_message("  3. Mở file → Tự động cài đặt", self.cert_info)
             self.log_message("", self.cert_info)
             self.log_message("Cách 2: Qua thẻ nhớ", self.cert_info)
             self.log_message("  1. Copy file vào thẻ nhớ", self.cert_info)
             self.log_message("  2. Lắp thẻ vào điện thoại", self.cert_info)
-            self.log_message("  3. File Manager → Mở file .cer", self.cert_info)
+            self.log_message("  3. File Manager → Mở file", self.cert_info)
             self.log_message("  4. Tự động cài đặt", self.cert_info)
             self.log_message("", self.cert_info)
             self.log_message("Cách 3: Qua USB (Mass Storage)", self.cert_info)
             self.log_message("  1. Kết nối USB → Chọn Mass Storage", self.cert_info)
             self.log_message("  2. Copy file vào thẻ nhớ điện thoại", self.cert_info)
             self.log_message("  3. Rút USB → File Manager → Mở file", self.cert_info)
-            self.log_message("", self.cert_info)
-            self.log_message("💡 Lưu ý:", self.cert_info)
-            self.log_message("  - File .cer và .der đều dùng được", self.cert_info)
-            self.log_message("  - Điện thoại sẽ TỰ ĐỘNG nhận diện", self.cert_info)
-            self.log_message("  - Không cần cài app đặc biệt", self.cert_info)
             
             self.status_var.set("Xuất certificate thành công")
-            
-            # Open folder containing the file
-            folder_path = os.path.dirname(filename)
             
             messagebox.showinfo(
                 "Thành công", 
                 f"✅ Đã xuất certificate cho Nokia S40!\n\n"
-                f"📁 File: {os.path.basename(filename)}\n"
-                f"📂 Thư mục: {folder_path}\n"
-                f"📊 Kích thước: {file_size} bytes\n\n"
+                f"📁 Đã tạo 2 file:\n"
+                f"   • {base_name}.cer ({cer_size} bytes)\n"
+                f"   • {base_name}.der ({der_size} bytes)\n\n"
+                f"📂 Thư mục: {folder}\n\n"
+                f"💡 Dùng file .cer HOẶC .der đều được!\n\n"
                 f"📱 Cách cài vào điện thoại:\n"
                 f"  • Bluetooth: Gửi file → Nhận → Mở\n"
                 f"  • Thẻ nhớ: Copy file → Mở trên điện thoại\n"
                 f"  • USB: Mass Storage → Copy → Mở\n\n"
-                f"💡 Điện thoại sẽ tự động cài đặt!"
+                f"Điện thoại sẽ tự động cài đặt!"
             )
             
             # Ask if user wants to open the folder
-            if messagebox.askyesno("Mở thư mục?", f"Bạn có muốn mở thư mục chứa file?\n\n{folder_path}"):
+            if messagebox.askyesno("Mở thư mục?", f"Bạn có muốn mở thư mục chứa file?\n\n{folder}"):
                 if sys.platform == 'win32':
-                    os.startfile(folder_path)
+                    os.startfile(folder)
                 elif sys.platform == 'darwin':  # macOS
-                    subprocess.Popen(['open', folder_path])
+                    subprocess.Popen(['open', folder])
                 else:  # Linux
-                    subprocess.Popen(['xdg-open', folder_path])
+                    subprocess.Popen(['xdg-open', folder])
+        elif cer_success or der_success:
+            # At least one succeeded
+            self.log_message("", self.cert_info)
+            self.log_message("⚠️ Chỉ xuất được 1 file thành công", self.cert_info)
+            self.status_var.set("Xuất một phần thành công")
+            messagebox.showwarning(
+                "Cảnh báo",
+                "Chỉ xuất được 1 trong 2 file!\n\nVui lòng kiểm tra log để biết chi tiết."
+            )
         else:
-            self.log_message("❌ Lỗi khi xuất certificate!", self.cert_info)
+            # Both failed
+            self.log_message("", self.cert_info)
+            self.log_message("❌ Không thể xuất certificate!", self.cert_info)
             self.status_var.set("Lỗi")
-            messagebox.showerror("Lỗi", "Không thể xuất certificate!\n\nKhuyến nghị: Lưu vào thư mục không có ký tự đặc biệt.")
+            messagebox.showerror(
+                "Lỗi", 
+                "Không thể xuất certificate!\n\n"
+                "Khuyến nghị: Lưu vào thư mục không có ký tự đặc biệt."
+            )
     
     def save_settings(self):
         """Lưu cài đặt"""
